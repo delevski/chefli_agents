@@ -35,8 +35,8 @@ class DesignAgent:
             if not api_key:
                 raise ValueError("ANTHROPIC_API_KEY environment variable not set")
             return ChatAnthropic(
-                model="claude-3-sonnet-20240229",
-                temperature=0.8,
+                model="claude-3-haiku-20240307",  # Faster Anthropic model
+                temperature=0.5,  # Lower temperature for faster responses
                 api_key=api_key
             )
         else:  # Default to OpenAI
@@ -44,8 +44,8 @@ class DesignAgent:
             if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable not set")
             return ChatOpenAI(
-                model="gpt-4-turbo-preview",
-                temperature=0.8,
+                model="gpt-4o-mini",  # Faster model for image prompt generation
+                temperature=0.5,  # Lower temperature for faster responses
                 api_key=api_key
             )
 
@@ -63,25 +63,15 @@ class DesignAgent:
         language_instruction = f"IMPORTANT: Respond entirely in {language}. The image prompt must be written in {language}."
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", f"""You are a food photographer and visual designer. Create a detailed, 
-            vivid image generation prompt for the dish described in the recipe.
-            {language_instruction}
-            
-            CRITICAL RULES:
-            - Be concise and practical. No storytelling, slogans, or marketing language.
-            - Focus on accurate visual description based on the actual recipe.
-            - Describe only what is actually in the recipe, don't invent elements.
-            
-            The prompt should describe:
-            - The appearance of the dish (colors, textures, presentation)
-            - The plating style and arrangement
-            - Lighting and atmosphere
-            - Any garnishes or accompaniments (only if mentioned in recipe)
-            - The overall aesthetic and mood
-            
-            Make it detailed and visually descriptive, suitable for image generation AI models.
-            Return only the prompt text, no additional formatting.
-            Remember: Write the prompt in {language}. Be accurate and practical."""),
+            ("system", f"""Create an image generation prompt for the dish.
+{language_instruction}
+
+Rules:
+- Concise, practical. No storytelling or marketing.
+- Describe only what's in the recipe.
+- Include: appearance, colors, textures, plating, lighting, garnishes (if in recipe).
+
+Return only the prompt text in {language}. No formatting."""),
             ("human", """Dish: {dish_name}
             
 Ingredients: {ingredients}

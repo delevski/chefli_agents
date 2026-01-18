@@ -29,8 +29,8 @@ class NutritionAgent:
             if not api_key:
                 raise ValueError("ANTHROPIC_API_KEY environment variable not set")
             return ChatAnthropic(
-                model="claude-3-sonnet-20240229",
-                temperature=0.3,
+                model="claude-3-haiku-20240307",  # Faster Anthropic model
+                temperature=0.1,  # Lower temperature for faster responses
                 api_key=api_key
             )
         else:  # Default to OpenAI
@@ -38,10 +38,15 @@ class NutritionAgent:
             if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable not set")
             return ChatOpenAI(
-                model="gpt-4-turbo-preview",
-                temperature=0.3,
+                model="gpt-4o-mini",  # Faster model for calculations
+                temperature=0.1,  # Lower temperature for faster, more deterministic responses
                 api_key=api_key
             )
+
+    def _recipe_hash(self, recipe: Recipe) -> str:
+        """Create a hash of recipe for caching."""
+        recipe_str = f"{recipe.dish_name}:{','.join([f'{ing.name}:{ing.quantity}' for ing in recipe.ingredients])}"
+        return hashlib.md5(recipe_str.encode()).hexdigest()
 
     async def calculate_nutrition(self, recipe: Recipe, language: str = "English") -> Nutrition:
         """
@@ -59,21 +64,18 @@ class NutritionAgent:
         # Build system prompt with properly escaped JSON example
         json_example = '{{\n    "calories": <total calories as float>,\n    "protein": <total protein in grams as float>,\n    "carbohydrates": <total carbohydrates in grams as float>,\n    "fiber": <total fiber in grams as float>,\n    "fats": <total fats in grams as float>\n}}'
         
-        system_prompt = f"""You are a nutritionist. Calculate the nutritional values for the recipe 
-based on the ingredients and their quantities.
+        system_prompt = f"""Calculate nutritional values for the recipe.
 {language_instruction}
 
-CRITICAL RULES:
-- Do NOT invent or estimate nutritional data. Use only real, accurate values from standard nutritional databases.
-- If information is missing or uncertain for an ingredient, state it explicitly or use 0, but note the limitation.
-- Be accurate and realistic. Focus on precision, not approximation.
-- Calculate the total nutritional values for the entire recipe (not per serving).
+Rules:
+- Use real values from nutritional databases only. No estimates.
+- If uncertain, use 0 and note it.
+- Calculate totals for entire recipe.
 
-Return your response as JSON with the following structure:
+Return JSON:
 {json_example}
 
-Use standard nutritional databases and be precise in your calculations.
-Remember: All text must be in {language}. No marketing language, only factual data."""
+Be precise. {language} only. No marketing language."""
         
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),

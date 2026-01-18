@@ -2,6 +2,8 @@
 
 import asyncio
 import re
+import hashlib
+from functools import lru_cache
 from src.agents.chef_agent import ChefAgent
 from src.agents.design_agent import DesignAgent
 from src.agents.nutrition_agent import NutritionAgent

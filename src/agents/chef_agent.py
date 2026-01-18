@@ -60,25 +60,24 @@ class ChefAgent:
         # Build system prompt with properly escaped JSON example
         json_example = '{{\n    "dish_name": "Name of the dish",\n    "ingredients": [\n        {{"name": "ingredient name", "quantity": "amount and unit"}},\n        ...\n    ],\n    "instructions": [\n        "Step 1 instruction",\n        "Step 2 instruction",\n        ...\n    ]\n}}'
         
-        system_prompt = f"""You are an expert chef. Generate a detailed recipe based on the menu item provided.
+        system_prompt = f"""Generate a recipe based on the menu item.
 {language_instruction}
 
-CRITICAL RULES:
-- Do NOT invent recipes, steps, or data. Use only real, accurate information.
-- If information is missing or uncertain, state it explicitly (e.g., "approximately", "if available").
-- Writing must be concise, clear, and practical. No storytelling, slogans, or marketing language.
-- Focus strictly on accuracy, usability, and real-world execution.
-- Use all or most of the provided ingredients when possible, but only if they are necessary for the dish. Do not force ingredients that don't belong.
+Rules:
+- No inventing recipes, steps, or data. Use real information only.
+- If uncertain, state it explicitly.
+- Concise, clear, practical. No storytelling or marketing.
+- Use all/most provided ingredients when appropriate. Don't force unnecessary ones.
 
-The recipe should include:
-1. A clear dish name
-2. A complete list of ingredients with quantities (use all/most provided ingredients when appropriate)
-3. Step-by-step cooking instructions (concise and practical)
+Include:
+1. Dish name
+2. Ingredients with quantities
+3. Step-by-step instructions (concise)
 
-Format your response as JSON with the following structure:
+Return JSON:
 {json_example}
 
-Remember: All text must be in {language}. Be accurate, practical, and avoid any marketing language."""
+{language} only. Accurate and practical."""
         
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
