@@ -57,20 +57,23 @@ class NutritionAgent:
         language_instruction = f"IMPORTANT: Respond entirely in {language}. All text must be in {language}."
         
         # Build system prompt with properly escaped JSON example
-        json_example = '{{\n    "calories": <total calories as float>,\n    "protein": <total protein in grams as float>,\n    "carbohydrates": <total carbohydrates in grams as float>\n}}'
+        json_example = '{{\n    "calories": <total calories as float>,\n    "protein": <total protein in grams as float>,\n    "carbohydrates": <total carbohydrates in grams as float>,\n    "fiber": <total fiber in grams as float>,\n    "fats": <total fats in grams as float>\n}}'
         
         system_prompt = f"""You are a nutritionist. Calculate the nutritional values for the recipe 
 based on the ingredients and their quantities.
 {language_instruction}
 
-Estimate the total nutritional values for the entire recipe (not per serving).
-Consider typical serving sizes and standard nutritional databases.
+CRITICAL RULES:
+- Do NOT invent or estimate nutritional data. Use only real, accurate values from standard nutritional databases.
+- If information is missing or uncertain for an ingredient, state it explicitly or use 0, but note the limitation.
+- Be accurate and realistic. Focus on precision, not approximation.
+- Calculate the total nutritional values for the entire recipe (not per serving).
 
 Return your response as JSON with the following structure:
 {json_example}
 
-Be accurate and realistic in your calculations.
-Remember: All text must be in {language}."""
+Use standard nutritional databases and be precise in your calculations.
+Remember: All text must be in {language}. No marketing language, only factual data."""
         
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
@@ -107,7 +110,9 @@ Calculate the nutritional values for this recipe:""")
             return Nutrition(
                 calories=float(nutrition_data["calories"]),
                 protein=float(nutrition_data["protein"]),
-                carbohydrates=float(nutrition_data["carbohydrates"])
+                carbohydrates=float(nutrition_data["carbohydrates"]),
+                fiber=float(nutrition_data.get("fiber", 0.0)),
+                fats=float(nutrition_data.get("fats", 0.0))
             )
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             raise ValueError(f"Failed to parse nutrition response: {e}")

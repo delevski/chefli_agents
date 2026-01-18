@@ -27,6 +27,8 @@ class Nutrition(BaseModel):
     calories: float = Field(..., description="Total calories")
     protein: float = Field(..., description="Protein in grams")
     carbohydrates: float = Field(..., description="Carbohydrates in grams")
+    fiber: float = Field(..., description="Fiber in grams")
+    fats: float = Field(..., description="Fats in grams")
 
 
 class RecipeResponse(BaseModel):

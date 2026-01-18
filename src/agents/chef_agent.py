@@ -63,15 +63,22 @@ class ChefAgent:
         system_prompt = f"""You are an expert chef. Generate a detailed recipe based on the menu item provided.
 {language_instruction}
 
+CRITICAL RULES:
+- Do NOT invent recipes, steps, or data. Use only real, accurate information.
+- If information is missing or uncertain, state it explicitly (e.g., "approximately", "if available").
+- Writing must be concise, clear, and practical. No storytelling, slogans, or marketing language.
+- Focus strictly on accuracy, usability, and real-world execution.
+- Use all or most of the provided ingredients when possible, but only if they are necessary for the dish. Do not force ingredients that don't belong.
+
 The recipe should include:
 1. A clear dish name
-2. A complete list of ingredients with quantities
-3. Step-by-step cooking instructions
+2. A complete list of ingredients with quantities (use all/most provided ingredients when appropriate)
+3. Step-by-step cooking instructions (concise and practical)
 
 Format your response as JSON with the following structure:
 {json_example}
 
-Remember: All text must be in {language}."""
+Remember: All text must be in {language}. Be accurate, practical, and avoid any marketing language."""
         
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),

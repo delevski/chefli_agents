@@ -67,16 +67,21 @@ class DesignAgent:
             vivid image generation prompt for the dish described in the recipe.
             {language_instruction}
             
+            CRITICAL RULES:
+            - Be concise and practical. No storytelling, slogans, or marketing language.
+            - Focus on accurate visual description based on the actual recipe.
+            - Describe only what is actually in the recipe, don't invent elements.
+            
             The prompt should describe:
             - The appearance of the dish (colors, textures, presentation)
             - The plating style and arrangement
             - Lighting and atmosphere
-            - Any garnishes or accompaniments
+            - Any garnishes or accompaniments (only if mentioned in recipe)
             - The overall aesthetic and mood
             
             Make it detailed and visually descriptive, suitable for image generation AI models.
             Return only the prompt text, no additional formatting.
-            Remember: Write the prompt in {language}."""),
+            Remember: Write the prompt in {language}. Be accurate and practical."""),
             ("human", """Dish: {dish_name}
             
 Ingredients: {ingredients}
