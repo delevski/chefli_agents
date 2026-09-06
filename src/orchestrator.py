@@ -57,6 +57,16 @@ class Orchestrator:
         self.nutrition_agent = NutritionAgent(llm_provider)
 
     async def process_menu(self, menu: str) -> RecipeResponse:
+        """Retry wrapper: free-tier endpoints fluctuate between available and saturated/ZDR-excluded."""
+        last_err = None
+        for attempt in range(3):
+            try:
+                return await self._process_menu_once(menu)
+            except Exception as e:
+                last_err = e
+        raise last_err
+
+    async def _process_menu_once(self, menu: str) -> RecipeResponse:
         """
         Process menu input through the multi-agent system.
 
