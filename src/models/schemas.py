@@ -1,6 +1,6 @@
 """Pydantic models for request and response schemas."""
 
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -35,5 +35,5 @@ class RecipeResponse(BaseModel):
     """Final JSON response structure."""
     recipe: Recipe = Field(..., description="Generated recipe")
     image_prompt: str = Field(..., description="Image generation prompt")
-    image_url: str = Field(None, description="URL of the generated image")
+    image_url: Optional[str] = Field(None, description="URL of the generated image")
     nutrition: Nutrition = Field(..., description="Nutritional information")

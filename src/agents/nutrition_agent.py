@@ -24,6 +24,17 @@ class NutritionAgent:
 
     def _initialize_llm(self):
         """Initialize the LLM based on provider."""
+        if self.llm_provider == "openrouter":
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            if not api_key:
+                raise ValueError("OPENROUTER_API_KEY environment variable not set")
+            return ChatOpenAI(
+                model=os.getenv("OPENROUTER_MODEL", "openrouter/free"),
+                temperature=0.1,
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1",
+                extra_body={"provider": {"data_collection": "allow"}},
+            )
         if self.llm_provider == "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if not api_key:
@@ -118,3 +129,4 @@ Calculate the nutritional values for this recipe:""")
             )
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             raise ValueError(f"Failed to parse nutrition response: {e}")
+
