@@ -33,6 +33,7 @@ class NutritionAgent:
                 temperature=0.1,
                 api_key=api_key,
                 base_url="https://openrouter.ai/api/v1",
+                extra_body={"provider": {"data_collection": "allow"}},
             )
         if self.llm_provider == "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -128,3 +129,4 @@ Calculate the nutritional values for this recipe:""")
             )
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             raise ValueError(f"Failed to parse nutrition response: {e}")
+

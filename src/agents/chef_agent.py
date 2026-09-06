@@ -34,6 +34,7 @@ class ChefAgent:
                 temperature=0.7,
                 api_key=api_key,
                 base_url="https://openrouter.ai/api/v1",
+                extra_body={"provider": {"data_collection": "allow"}},
             )
         if self.llm_provider == "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -122,3 +123,4 @@ Return JSON:
             )
         except (json.JSONDecodeError, KeyError) as e:
             raise ValueError(f"Failed to parse recipe response: {e}")
+

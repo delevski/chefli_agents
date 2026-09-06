@@ -39,6 +39,7 @@ class DesignAgent:
                 temperature=0.5,
                 api_key=api_key,
                 base_url="https://openrouter.ai/api/v1",
+                extra_body={"provider": {"data_collection": "allow"}},
             )
         if self.llm_provider == "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -186,3 +187,4 @@ Generate a detailed image prompt for this dish:""")
                 "image_prompt": image_prompt,
                 "error": str(e)
             }
+
