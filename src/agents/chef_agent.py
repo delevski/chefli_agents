@@ -25,6 +25,17 @@ class ChefAgent:
 
     def _initialize_llm(self):
         """Initialize the LLM based on provider."""
+        if self.llm_provider == "openrouter":
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            if not api_key:
+                raise ValueError("OPENROUTER_API_KEY environment variable not set")
+            return ChatOpenAI(
+                model=os.getenv("OPENROUTER_MODEL", "openrouter/free"),
+                temperature=0.7,
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1",
+                extra_body={"provider": {"data_collection": "allow"}},
+            )
         if self.llm_provider == "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if not api_key:
@@ -56,10 +67,10 @@ class ChefAgent:
             Recipe object with dish name, ingredients, and instructions
         """
         language_instruction = f"IMPORTANT: Respond entirely in {language}. All text including dish name, ingredients, and instructions must be in {language}."
-        
+
         # Build system prompt with properly escaped JSON example
         json_example = '{{\n    "dish_name": "Name of the dish",\n    "ingredients": [\n        {{"name": "ingredient name", "quantity": "amount and unit"}},\n        ...\n    ],\n    "instructions": [\n        "Step 1 instruction",\n        "Step 2 instruction",\n        ...\n    ]\n}}'
-        
+
         system_prompt = f"""Generate a recipe based on the menu item.
 {language_instruction}
 
@@ -78,7 +89,7 @@ Return JSON:
 {json_example}
 
 {language} only. Accurate and practical."""
-        
+
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             ("human", "Menu item: {menu}")
@@ -96,15 +107,15 @@ Return JSON:
                 content = content.split("```json")[1].split("```")[0].strip()
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
-            
+
             recipe_data = json.loads(content)
-            
+
             # Convert to Recipe model
             ingredients = [
                 Ingredient(name=ing["name"], quantity=ing["quantity"])
                 for ing in recipe_data["ingredients"]
             ]
-            
+
             return Recipe(
                 dish_name=recipe_data["dish_name"],
                 ingredients=ingredients,

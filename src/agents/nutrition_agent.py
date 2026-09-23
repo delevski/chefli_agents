@@ -24,6 +24,17 @@ class NutritionAgent:
 
     def _initialize_llm(self):
         """Initialize the LLM based on provider."""
+        if self.llm_provider == "openrouter":
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            if not api_key:
+                raise ValueError("OPENROUTER_API_KEY environment variable not set")
+            return ChatOpenAI(
+                model=os.getenv("OPENROUTER_MODEL", "openrouter/free"),
+                temperature=0.1,
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1",
+                extra_body={"provider": {"data_collection": "allow"}},
+            )
         if self.llm_provider == "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if not api_key:
@@ -60,10 +71,10 @@ class NutritionAgent:
             Nutrition object with calories, protein, and carbohydrates
         """
         language_instruction = f"IMPORTANT: Respond entirely in {language}. All text must be in {language}."
-        
+
         # Build system prompt with properly escaped JSON example
         json_example = '{{\n    "calories": <total calories as float>,\n    "protein": <total protein in grams as float>,\n    "carbohydrates": <total carbohydrates in grams as float>,\n    "fiber": <total fiber in grams as float>,\n    "fats": <total fats in grams as float>\n}}'
-        
+
         system_prompt = f"""Calculate nutritional values for the recipe.
 {language_instruction}
 
@@ -76,11 +87,11 @@ Return JSON:
 {json_example}
 
 Be precise. {language} only. No marketing language."""
-        
+
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             ("human", """Dish: {dish_name}
-            
+
 Ingredients:
 {ingredients}
 
@@ -106,9 +117,9 @@ Calculate the nutritional values for this recipe:""")
                 content = content.split("```json")[1].split("```")[0].strip()
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
-            
+
             nutrition_data = json.loads(content)
-            
+
             return Nutrition(
                 calories=float(nutrition_data["calories"]),
                 protein=float(nutrition_data["protein"]),
