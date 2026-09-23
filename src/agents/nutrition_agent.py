@@ -25,6 +25,32 @@ class NutritionAgent:
     def _initialize_llm(self):
         """Initialize the LLM based on provider."""
         if self.llm_provider == "openrouter":
+            gemini_key = os.getenv("GEMINI_API_KEY")
+            if gemini_key:
+                temperature = 0.1
+                def _gm(model_name):
+                    return ChatOpenAI(
+                        model=model_name,
+                        temperature=temperature,
+                        api_key=gemini_key,
+                        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                    )
+                candidates = [
+                    _gm(os.getenv("GEMINI_TEXT_MODEL", "gemini-3.6-flash")),
+                    _gm("gemini-3.5-flash"),
+                    _gm("gemini-flash-latest"),
+                    _gm("gemini-3.5-flash-lite"),
+                ]
+                or_api_key = os.getenv("OPENROUTER_API_KEY")
+                if or_api_key:
+                    candidates.append(ChatOpenAI(
+                        model=os.getenv("OPENROUTER_MODEL", "openrouter/free"),
+                        temperature=temperature,
+                        api_key=or_api_key,
+                        base_url="https://openrouter.ai/api/v1",
+                        extra_body={"provider": {"data_collection": "allow"}},
+                    ))
+                return candidates[0].with_fallbacks(candidates[1:]) if len(candidates) > 1 else candidates[0]
             api_key = os.getenv("OPENROUTER_API_KEY")
             if not api_key:
                 raise ValueError("OPENROUTER_API_KEY environment variable not set")
