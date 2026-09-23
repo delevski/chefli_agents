@@ -126,6 +126,33 @@ Generate a detailed image prompt for this dish:""")
         prompt_language = "English" if cf_configured else language
         image_prompt = await self.generate_image_prompt(recipe, language=prompt_language)
 
+        # Generate image via Gemini image model when configured; falls back to Cloudflare on failure
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        if gemini_key:
+            try:
+                import httpx
+                gemini_model = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+                gm_url = f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent"
+                async with httpx.AsyncClient(timeout=120) as client:
+                    resp = await client.post(
+                        gm_url,
+                        params={"key": gemini_key},
+                        headers={"Content-Type": "application/json"},
+                        json={"contents": [{"parts": [{"text": image_prompt}]}]},
+                    )
+                gdata = resp.json()
+                gparts = (gdata.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+                gimg = next((pt["inlineData"] for pt in gparts if pt.get("inlineData", {}).get("data")), None)
+                if gimg:
+                    mime = gimg.get("mimeType", "image/png")
+                    return {
+                        "image_url": f"data:{mime};base64," + gimg["data"],
+                        "image_prompt": image_prompt,
+                    }
+                print(f"Gemini image returned no image, falling back to Cloudflare: {gdata.get('error') or gdata}")
+            except Exception as e:
+                print(f"Gemini image exception, falling back to Cloudflare: {e}")
+
         # Generate image via Cloudflare Workers AI (free tier) when configured
         cf_account = os.getenv("CLOUDFLARE_ACCOUNT_ID")
         cf_token = os.getenv("CLOUDFLARE_API_TOKEN")
