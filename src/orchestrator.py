@@ -13,10 +13,10 @@ from src.models.schemas import RecipeResponse, Recipe
 def detect_language(text: str) -> str:
     """
     Detect the language of the input text.
-    
+
     Args:
         text: Input text to detect language for
-        
+
     Returns:
         Language name (e.g., 'Hebrew', 'English', 'Spanish', etc.)
     """
@@ -57,6 +57,16 @@ class Orchestrator:
         self.nutrition_agent = NutritionAgent(llm_provider)
 
     async def process_menu(self, menu: str) -> RecipeResponse:
+        """Retry wrapper: free-tier endpoints fluctuate between available and saturated/ZDR-excluded."""
+        last_err = None
+        for attempt in range(3):
+            try:
+                return await self._process_menu_once(menu)
+            except Exception as e:
+                last_err = e
+        raise last_err
+
+    async def _process_menu_once(self, menu: str) -> RecipeResponse:
         """
         Process menu input through the multi-agent system.
 
@@ -68,7 +78,7 @@ class Orchestrator:
         """
         # Detect the language of the menu input
         detected_language = detect_language(menu)
-        
+
         # Step 1: Generate recipe using Chef Agent (with language context)
         recipe = await self.chef_agent.generate_recipe(menu, language=detected_language)
 

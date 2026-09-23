@@ -21,15 +21,52 @@ class DesignAgent:
         """
         self.llm_provider = llm_provider.lower()
         self.llm = self._initialize_llm()
-        # Initialize OpenAI client for DALL-E image generation
+        # Initialize OpenAI client for DALL-E image generation (only when using OpenAI)
         api_key = os.getenv("OPENAI_API_KEY")
-        if api_key and api_key != "your_openai_api_key_here":
+        if self.llm_provider == "openai" and api_key and api_key != "your_openai_api_key_here":
             self.openai_client = OpenAI(api_key=api_key)
         else:
             self.openai_client = None
 
     def _initialize_llm(self):
         """Initialize the LLM based on provider."""
+        if self.llm_provider == "openrouter":
+            gemini_key = os.getenv("GEMINI_API_KEY")
+            if gemini_key:
+                temperature = 0.5
+                def _gm(model_name):
+                    return ChatOpenAI(
+                        model=model_name,
+                        temperature=temperature,
+                        api_key=gemini_key,
+                        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                    )
+                candidates = [
+                    _gm(os.getenv("GEMINI_TEXT_MODEL", "gemini-3.6-flash")),
+                    _gm("gemini-3.5-flash"),
+                    _gm("gemini-flash-latest"),
+                    _gm("gemini-3.5-flash-lite"),
+                ]
+                or_api_key = os.getenv("OPENROUTER_API_KEY")
+                if or_api_key:
+                    candidates.append(ChatOpenAI(
+                        model=os.getenv("OPENROUTER_MODEL", "openrouter/free"),
+                        temperature=temperature,
+                        api_key=or_api_key,
+                        base_url="https://openrouter.ai/api/v1",
+                        extra_body={"provider": {"data_collection": "allow"}},
+                    ))
+                return candidates[0].with_fallbacks(candidates[1:]) if len(candidates) > 1 else candidates[0]
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            if not api_key:
+                raise ValueError("OPENROUTER_API_KEY environment variable not set")
+            return ChatOpenAI(
+                model=os.getenv("OPENROUTER_MODEL", "openrouter/free"),
+                temperature=0.5,
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1",
+                extra_body={"provider": {"data_collection": "allow"}},
+            )
         if self.llm_provider == "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if not api_key:
@@ -61,7 +98,7 @@ class DesignAgent:
             Detailed image generation prompt
         """
         language_instruction = f"IMPORTANT: Respond entirely in {language}. The image prompt must be written in {language}."
-        
+
         prompt = ChatPromptTemplate.from_messages([
             ("system", f"""Create an image generation prompt for the dish.
 {language_instruction}
@@ -73,11 +110,11 @@ Rules:
 
 Return only the prompt text in {language}. No formatting."""),
             ("human", """Dish: {dish_name}
-            
+
 Ingredients: {ingredients}
-            
+
 Instructions: {instructions}
-            
+
 Generate a detailed image prompt for this dish:""")
         ])
 
@@ -109,9 +146,70 @@ Generate a detailed image prompt for this dish:""")
         Returns:
             Dictionary with image_url and image_prompt
         """
-        # First generate the prompt
-        image_prompt = await self.generate_image_prompt(recipe, language=language)
-        
+        # First generate the prompt.
+        # FLUX.1 (Cloudflare) only understands English prompts; DALL-E handled the user's language.
+        cf_configured = bool(os.getenv("CLOUDFLARE_ACCOUNT_ID") and os.getenv("CLOUDFLARE_API_TOKEN"))
+        prompt_language = "English" if cf_configured else language
+        image_prompt = await self.generate_image_prompt(recipe, language=prompt_language)
+
+        # Generate image via Gemini image model when configured; falls back to Cloudflare on failure
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        if gemini_key:
+            try:
+                import httpx
+                gemini_model = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+                gm_url = f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent"
+                async with httpx.AsyncClient(timeout=120) as client:
+                    resp = await client.post(
+                        gm_url,
+                        params={"key": gemini_key},
+                        headers={"Content-Type": "application/json"},
+                        json={"contents": [{"parts": [{"text": image_prompt}]}]},
+                    )
+                gdata = resp.json()
+                gparts = (gdata.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+                gimg = next((pt["inlineData"] for pt in gparts if pt.get("inlineData", {}).get("data")), None)
+                if gimg:
+                    mime = gimg.get("mimeType", "image/png")
+                    return {
+                        "image_url": f"data:{mime};base64," + gimg["data"],
+                        "image_prompt": image_prompt,
+                    }
+                print(f"Gemini image returned no image, falling back to Cloudflare: {gdata.get('error') or gdata}")
+            except Exception as e:
+                print(f"Gemini image exception, falling back to Cloudflare: {e}")
+
+        # Generate image via Cloudflare Workers AI (free tier) when configured
+        cf_account = os.getenv("CLOUDFLARE_ACCOUNT_ID")
+        cf_token = os.getenv("CLOUDFLARE_API_TOKEN")
+        if cf_account and cf_token:
+            try:
+                import httpx
+                cf_url = f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/run/@cf/black-forest-labs/flux-1-schnell"
+                async with httpx.AsyncClient(timeout=120) as client:
+                    resp = await client.post(
+                        cf_url,
+                        headers={"Authorization": f"Bearer {cf_token}", "Content-Type": "application/json"},
+                        json={"prompt": image_prompt},
+                    )
+                data = resp.json()
+                if data.get("success") and data.get("result", {}).get("image"):
+                    return {
+                        "image_url": "data:image/jpeg;base64," + data["result"]["image"],
+                        "image_prompt": image_prompt,
+                    }
+                return {
+                    "image_url": None,
+                    "image_prompt": image_prompt,
+                    "error": f"Cloudflare Workers AI error: {data.get('errors')}",
+                }
+            except Exception as e:
+                return {
+                    "image_url": None,
+                    "image_prompt": image_prompt,
+                    "error": f"Cloudflare Workers AI exception: {e}",
+                }
+
         # Generate image using DALL-E if OpenAI client is available
         if self.openai_client is None:
             return {
@@ -119,7 +217,7 @@ Generate a detailed image prompt for this dish:""")
                 "image_prompt": image_prompt,
                 "error": "OpenAI API key not configured"
             }
-        
+
         try:
             response = self.openai_client.images.generate(
                 model="dall-e-3",
@@ -128,9 +226,9 @@ Generate a detailed image prompt for this dish:""")
                 quality="standard",
                 n=1,
             )
-            
+
             image_url = response.data[0].url
-            
+
             return {
                 "image_url": image_url,
                 "image_prompt": image_prompt

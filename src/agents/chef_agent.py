@@ -25,6 +25,43 @@ class ChefAgent:
 
     def _initialize_llm(self):
         """Initialize the LLM based on provider."""
+        if self.llm_provider == "openrouter":
+            gemini_key = os.getenv("GEMINI_API_KEY")
+            if gemini_key:
+                temperature = 0.7
+                def _gm(model_name):
+                    return ChatOpenAI(
+                        model=model_name,
+                        temperature=temperature,
+                        api_key=gemini_key,
+                        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                    )
+                candidates = [
+                    _gm(os.getenv("GEMINI_TEXT_MODEL", "gemini-3.6-flash")),
+                    _gm("gemini-3.5-flash"),
+                    _gm("gemini-flash-latest"),
+                    _gm("gemini-3.5-flash-lite"),
+                ]
+                or_api_key = os.getenv("OPENROUTER_API_KEY")
+                if or_api_key:
+                    candidates.append(ChatOpenAI(
+                        model=os.getenv("OPENROUTER_MODEL", "openrouter/free"),
+                        temperature=temperature,
+                        api_key=or_api_key,
+                        base_url="https://openrouter.ai/api/v1",
+                        extra_body={"provider": {"data_collection": "allow"}},
+                    ))
+                return candidates[0].with_fallbacks(candidates[1:]) if len(candidates) > 1 else candidates[0]
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            if not api_key:
+                raise ValueError("OPENROUTER_API_KEY environment variable not set")
+            return ChatOpenAI(
+                model=os.getenv("OPENROUTER_MODEL", "openrouter/free"),
+                temperature=0.7,
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1",
+                extra_body={"provider": {"data_collection": "allow"}},
+            )
         if self.llm_provider == "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if not api_key:
@@ -56,10 +93,10 @@ class ChefAgent:
             Recipe object with dish name, ingredients, and instructions
         """
         language_instruction = f"IMPORTANT: Respond entirely in {language}. All text including dish name, ingredients, and instructions must be in {language}."
-        
+
         # Build system prompt with properly escaped JSON example
         json_example = '{{\n    "dish_name": "Name of the dish",\n    "ingredients": [\n        {{"name": "ingredient name", "quantity": "amount and unit"}},\n        ...\n    ],\n    "instructions": [\n        "Step 1 instruction",\n        "Step 2 instruction",\n        ...\n    ]\n}}'
-        
+
         system_prompt = f"""Generate a recipe based on the menu item.
 {language_instruction}
 
@@ -78,7 +115,7 @@ Return JSON:
 {json_example}
 
 {language} only. Accurate and practical."""
-        
+
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
             ("human", "Menu item: {menu}")
@@ -96,15 +133,15 @@ Return JSON:
                 content = content.split("```json")[1].split("```")[0].strip()
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
-            
+
             recipe_data = json.loads(content)
-            
+
             # Convert to Recipe model
             ingredients = [
                 Ingredient(name=ing["name"], quantity=ing["quantity"])
                 for ing in recipe_data["ingredients"]
             ]
-            
+
             return Recipe(
                 dish_name=recipe_data["dish_name"],
                 ingredients=ingredients,
